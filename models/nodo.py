@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, ForeignKey
 from sqlalchemy.orm import relationship
-from Base import Base
+from models.base import Base 
 
 class Nodo(Base):
     __tablename__ = 'nodos'

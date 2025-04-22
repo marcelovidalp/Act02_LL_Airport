@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
-from models.Base import Base
+from models.base import Base  # Corregir la importación
 
 DATABASE_URL = "sqlite:///./airport.db" # SQLite database file
 

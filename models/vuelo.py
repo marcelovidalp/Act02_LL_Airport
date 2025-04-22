@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Enum, ForeignKey
-from sqlalchemy.orm import relationship
 
-from Base import Base
+from models.base import Base
 
 class Vuelo(Base):
     __tablename__ = 'vuelos'
