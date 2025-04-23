@@ -6,6 +6,22 @@ El Sistema de Gestión de Aeropuerto sigue un patrón de arquitectura por capas 
 
 ### Capas
 
+```mermaid
+graph TD
+    subgraph "Arquitectura por Capas"
+        A[Cliente] --> B["Capa de Presentación<br>(FastAPI)"]
+        B --> C["Capa de Servicio<br>(Lógica de Negocio)"]
+        C --> D["Capa de Acceso a Datos<br>(SQLAlchemy)"]
+        D --> E["Base de Datos<br>(SQLite)"]
+    end
+    
+    style A fill:#f9f9f9,stroke:#333,stroke-width:1px
+    style B fill:#d1e7dd,stroke:#0d6efd,stroke-width:2px
+    style C fill:#fff3cd,stroke:#fd7e14,stroke-width:2px
+    style D fill:#cfe2ff,stroke:#0d6efd,stroke-width:2px
+    style E fill:#f8d7da,stroke:#dc3545,stroke-width:2px
+```
+
 1. **Capa de Presentación**
    - Implementada usando FastAPI
    - Maneja peticiones y respuestas HTTP
@@ -29,38 +45,71 @@ El Sistema de Gestión de Aeropuerto sigue un patrón de arquitectura por capas 
 
 ### Estructura de Directorios Actual
 
-```
-app/
-  ├── api/               # Puntos finales de API y definiciones de rutas
-  │    ├── __init__.py   # Agregación de routers
-  │    ├── flight_routes.py   # Puntos finales específicos de vuelos
-  │    └── list_routes.py     # Puntos finales de gestión de listas
-  ├── services/          # Lógica de negocio
-  │    ├── __init__.py
-  │    ├── flight_service.py  # Operaciones relacionadas con vuelos
-  │    └── linked_list.py     # Implementación de lista doblemente enlazada
-  ├── schemas/           # Validación de datos con Pydantic
-  │    ├── __init__.py
-  │    ├── vuelo_schemas.py   # Esquemas específicos de vuelos
-  │    └── lista_schemas.py   # Esquemas específicos de listas
-  ├── db/                # Configuración de base de datos
-  │    ├── __init__.py
-  │    └── config.py         # Configuración de conexión a base de datos
-  ├── __init__.py        # Inicialización del paquete
-  ├── models.py          # Modelos de base de datos usando SQLAlchemy
-docs/                    # Documentación
-  ├── api_documentation.md
-  └── architecture.md
+```mermaid
+graph TD
+    Root["app/"] --> API["api/"]
+    API --> init1["__init__.py"]
+    API --> flight["flight_routes.py"]
+    API --> list["list_routes.py"]
+    
+    Root --> Services["services/"]
+    Services --> init2["__init__.py"]
+    Services --> service["flight_service.py"]
+    Services --> linked["linked_list.py"]
+    
+    Root --> Schemas["schemas/"]
+    Schemas --> init3["__init__.py"]
+    Schemas --> vuelo["vuelo_schemas.py"]
+    Schemas --> lista["lista_schemas.py"]
+    
+    Root --> DB["db/"]
+    DB --> init4["__init__.py"]
+    DB --> config["config.py"]
+    
+    Root --> init5["__init__.py"]
+    
+    Root --> Models["models/"]
+    Models --> Base["Base.py"]
+    Models --> Estado["EstadoVuelo.py"]
+    Models --> ListaM["ListaVuelos.py"]
+    Models --> Nodo["Nodo.py"]
+    Models --> Vuelo["Vuelo.py"]
+    
+    Docs["docs/"] --> api_doc["api_documentation.md"]
+    Docs --> arq["architecture.md"]
+    Docs --> visual["visual_guides.md"]
+    Docs --> demo["demo_scenarios.md"]
 ```
 
 ## Flujo de Datos
 
-1. El cliente envía una petición a un punto final de la API
-2. El manejador de rutas apropiado procesa la petición
-3. El manejador de rutas llama a una función de servicio
-4. El servicio ejecuta la lógica de negocio, frecuentemente usando funciones de acceso a datos
-5. La respuesta se devuelve a través del servicio a la capa de API
-6. La capa de API formatea y envía la respuesta al cliente
+```mermaid
+sequenceDiagram
+    participant Cliente as Cliente
+    participant API as Capa API
+    participant Servicio as Capa de Servicio
+    participant Datos as Capa de Datos
+    participant DB as Base de Datos
+    
+    Cliente->>API: 1. Petición HTTP
+    API->>API: 2. Validación de datos
+    API->>Servicio: 3. Llamada a función de servicio
+    
+    alt Operación de Lista
+        Servicio->>Datos: 4a. Operación sobre lista enlazada
+        Datos->>DB: 5a. Consulta/actualización DB
+        DB-->>Datos: 6a. Resultados
+        Datos-->>Servicio: 7a. Objetos procesados
+    else Operación de Vuelo
+        Servicio->>Datos: 4b. CRUD de vuelo
+        Datos->>DB: 5b. Consulta/actualización DB
+        DB-->>Datos: 6b. Resultados
+        Datos-->>Servicio: 7b. Objetos procesados
+    end
+    
+    Servicio-->>API: 8. Resultado de operación
+    API-->>Cliente: 9. Respuesta HTTP formateada
+```
 
 ## Componentes Clave
 
@@ -68,9 +117,52 @@ docs/                    # Documentación
 
 El sistema utiliza una lista doblemente enlazada para gestionar vuelos, con estos componentes clave:
 
-- **Nodo (Nodo)**: Contiene datos de vuelo y referencias a nodos anterior y siguiente
-- **Lista de Vuelos (ListaVuelos)**: Contiene referencias a los nodos cabeza y cola
-- **Operaciones de Lista**: Métodos para agregar, eliminar, reordenar y recorrer la lista
+```mermaid
+classDiagram
+    class Nodo {
+        +vuelo: Vuelo
+        +siguiente: Nodo
+        +anterior: Nodo
+    }
+    
+    class ListaVuelos {
+        +nombre: String
+        +cabeza: Nodo
+        +cola: Nodo
+        +añadirAlInicio(vuelo)
+        +añadirAlFinal(vuelo)
+        +eliminarDelInicio()
+        +eliminarDelFinal()
+        +insertarEnPosicion(vuelo, posicion)
+        +eliminarDePosicion(posicion)
+        +priorizar()
+    }
+    
+    class Vuelo {
+        +codigo: String
+        +origen: String
+        +destino: String
+        +estado: EstadoVuelo
+        +aerolinea: String
+        +hora: DateTime
+    }
+    
+    class EstadoVuelo {
+        <<enumeration>>
+        PROGRAMADO
+        EMBARQUE
+        DESPEGADO
+        ATERRIZADO
+        RETRASADO
+        EMERGENCIA
+        CANCELADO
+    }
+    
+    ListaVuelos --> Nodo : contiene >
+    Nodo --> Vuelo : contiene
+    Nodo --> Nodo : anterior/siguiente
+    Vuelo --> EstadoVuelo : estado
+```
 
 ### Gestión de Vuelos
 
@@ -88,9 +180,21 @@ La implementación actual no incluye autenticación ni autorización. En un ento
 
 ## Manejo de Errores
 
-- Excepciones HTTP para errores del lado del cliente
-- Gestión de transacciones de base de datos
-- Manejo de excepciones para operaciones críticas
+```mermaid
+flowchart TD
+    A[Petición Cliente] --> B{Validación de datos}
+    B -->|Inválido| C[Error 400 Bad Request]
+    B -->|Válido| D{Recurso existe?}
+    D -->|No| E[Error 404 Not Found]
+    D -->|Sí| F{Operación exitosa?}
+    F -->|No| G[Error 500 Interno]
+    F -->|Sí| H[Respuesta exitosa 200/201]
+    
+    C --> Z[Respuesta al Cliente]
+    E --> Z
+    G --> Z
+    H --> Z
+```
 
 ## Conclusión
 
