@@ -1,0 +1,48 @@
+import enum
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum
+from sqlalchemy.orm import relationship
+from datetime import datetime
+
+
+from Base import Base
+
+class EstadoVuelo(enum.Enum):
+    PROGRAMADO = "programado"
+    EMBARQUE = "embarque"
+    DESPEGADO = "despegado"
+    ATERRIZADO = "aterrizado"
+    RETRASADO = "retrasado"
+    EMERGENCIA = "emergencia"
+    CANCELADO = "cancelado"
+
+class Vuelo(Base):
+    __tablename__ = "vuelos"
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String(10), unique=True, index=True)
+    origen = Column(String(50))
+    destino = Column(String(50))
+    hora = Column(DateTime, default=datetime.utcnow)
+    aerolinea = Column(String(50), nullable=True)
+    puerta_embarque = Column(String(10), nullable=True)
+    estado = Column(Enum(EstadoVuelo), default=EstadoVuelo.PROGRAMADO)
+
+    # Relación con la lista de vuelos
+    lista_vuelos_id = Column(Integer, ForeignKey("listas_vuelos.id"))
+    lista_vuelos = relationship("ListaVuelos", back_populates="vuelos")
+    
+    def __init__(self, codigo, origen, destino, hora=None, aerolinea=None, 
+                 puerta_embarque=None, estado="programado"):
+        self.codigo = codigo
+        self.origen = origen
+        self.destino = destino
+        self.hora = hora or datetime.utcnow()
+        self.aerolinea = aerolinea
+        self.puerta_embarque = puerta_embarque
+        
+        if isinstance(estado, str):
+            try:
+                self.estado = EstadoVuelo[estado.upper()]
+            except KeyError:
+                self.estado = EstadoVuelo.PROGRAMADO
+        else:
+            self.estado = estado
