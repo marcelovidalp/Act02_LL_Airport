@@ -2,18 +2,8 @@ import enum
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
-
-from Base import Base
-
-class EstadoVuelo(enum.Enum):
-    PROGRAMADO = "programado"
-    EMBARQUE = "embarque"
-    DESPEGADO = "despegado"
-    ATERRIZADO = "aterrizado"
-    RETRASADO = "retrasado"
-    EMERGENCIA = "emergencia"
-    CANCELADO = "cancelado"
+from app.models.EstadoVuelo import EstadoVuelo
+from app.models.Base import Base
 
 class Vuelo(Base):
     __tablename__ = "vuelos"

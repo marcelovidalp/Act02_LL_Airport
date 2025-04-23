@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.api import router
 from app.db import create_tables, get_db, SessionLocal
 from app.models import ListaVuelos, Vuelo
+from app.services import linked_list  
 
 app = FastAPI(
     title="Sistema de Gestión de Aeropuerto",
@@ -39,11 +40,10 @@ def init_db():
             db.add_all(vuelos)
             db.flush()
             
-            # Añadir vuelos a la lista
-            from app.crud import ListaOperations
-            ListaOperations.insertar_final(db, lista_vuelos, vuelos[0])
-            ListaOperations.insertar_final(db, lista_vuelos, vuelos[1])
-            ListaOperations.insertar_inicio(db, lista_vuelos, vuelos[2])  # Emergencia al inicio
+            # Añadir vuelos a la lista - CORREGIDO
+            linked_list.add_last(db, lista_vuelos, vuelos[0])
+            linked_list.add_last(db, lista_vuelos, vuelos[1])
+            linked_list.add_first(db, lista_vuelos, vuelos[2])  # Emergencia al inicio
             
             db.commit()
             print("Base de datos inicializada con datos de ejemplo")

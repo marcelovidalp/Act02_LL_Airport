@@ -4,7 +4,8 @@ Endpoints de API relacionados con vuelos
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
-from app import models, schemas
+from app import schemas
+from app.models import Vuelo, EstadoVuelo
 from app.db import get_db
 from app.services import flight_service, linked_list
 
@@ -41,7 +42,7 @@ def update_estado(vuelo_id: int, estado: schemas.VueloUpdate, db: Session = Depe
     Actualiza el estado de un vuelo.
     """
     try:
-        nuevo_estado = models.EstadoVuelo[estado.estado.upper()]
+        nuevo_estado = EstadoVuelo[estado.estado.upper()]
     except KeyError:
         raise HTTPException(status_code=400, detail=f"Estado inválido: {estado.estado}")
     

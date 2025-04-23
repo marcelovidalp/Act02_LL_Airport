@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, String
 from sqlalchemy.orm import relationship
 
-from Base import Base
+from app.models.Base import Base  # Corregido: Ruta completa a Base
 
 class ListaVuelos(Base):
     __tablename__ = "listas_vuelos"
