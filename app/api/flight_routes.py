@@ -1,9 +1,9 @@
 """
 Endpoints de API relacionados con vuelos
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from app import schemas
 from app.models import Vuelo, EstadoVuelo
 from app.db import get_db
@@ -11,169 +11,182 @@ from app.services import flight_service, linked_list
 
 router = APIRouter()
 
-@router.get("/vuelos/", response_model=List[schemas.VueloResponse])
-def read_vuelos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """
-    Obtiene todos los vuelos de la base de datos con paginación.
-    """
-    vuelos = flight_service.get_all_flights(db, skip, limit)
-    return vuelos
-
-@router.post("/vuelos/", response_model=schemas.VueloResponse)
+# IMPORTANTE: Endpoints fijos primero para evitar colisiones de rutas
+@router.post("/vuelos", response_model=schemas.VueloResponse)
 def create_vuelo(vuelo: schemas.VueloCreate, db: Session = Depends(get_db)):
     """
-    Crea un nuevo vuelo en la base de datos.
-    """
-    return flight_service.create_flight(db, vuelo)
-
-@router.get("/vuelos/{vuelo_id}", response_model=schemas.VueloResponse)
-def read_vuelo(vuelo_id: int, db: Session = Depends(get_db)):
-    """
-    Obtiene detalles de un vuelo específico por ID.
-    """
-    vuelo = flight_service.get_flight(db, vuelo_id)
-    if vuelo is None:
-        raise HTTPException(status_code=404, detail="Vuelo no encontrado")
-    return vuelo
-
-@router.patch("/vuelos/{vuelo_id}/estado", response_model=schemas.VueloResponse)
-def update_estado(vuelo_id: int, estado: schemas.VueloUpdate, db: Session = Depends(get_db)):
-    """
-    Actualiza el estado de un vuelo.
+    CREA UN NUEVO VUELO EN LA BASE DE DATOS.
+    
+    Este endpoint crea un nuevo vuelo y lo añade a la lista de vuelos
+    según su estado (emergencia o normal).
     """
     try:
-        nuevo_estado = EstadoVuelo[estado.estado.upper()]
-    except KeyError:
-        raise HTTPException(status_code=400, detail=f"Estado inválido: {estado.estado}")
-    
-    vuelo = flight_service.update_flight_status(db, vuelo_id, nuevo_estado)
-    if vuelo is None:
-        raise HTTPException(status_code=404, detail="Vuelo no encontrado")
-    return vuelo
+        vuelo_db = flight_service.create_flight(db, vuelo)
+        if vuelo.estado == EstadoVuelo.EMERGENCIA:
+            linked_list.add_first(db, vuelo_db)
+        else:
+            linked_list.add_last(db, vuelo_db)
+        
+        db.commit()
+        return vuelo_db
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al crear vuelo: {str(e)}"
+        )
 
 @router.get("/vuelos/total", response_model=Dict[str, int])
 def get_total_flights(lista_id: int = 1, db: Session = Depends(get_db)):
     """
-    Obtiene el número total de vuelos en la lista.
+    RETORNA EL NÚMERO TOTAL DE VUELOS EN COLA.
     """
-    lista = flight_service.get_list_by_id(db, lista_id)
-    if not lista:
-        raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
-    
-    total = linked_list.get_length(lista)
-    return {"total": total}
+    try:
+        lista = flight_service.get_list_by_id(db, lista_id)
+        if not lista:
+            raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
+        
+        total = linked_list.get_length(lista)
+        return {"total": total}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener total de vuelos: {str(e)}"
+        )
 
 @router.get("/vuelos/proximo", response_model=schemas.VueloResponse)
 def get_next_flight(lista_id: int = 1, db: Session = Depends(get_db)):
     """
-    Obtiene el próximo vuelo (primero en la lista).
+    RETORNA EL PRIMER VUELO SIN REMOVER.
     """
-    lista = flight_service.get_list_by_id(db, lista_id)
-    if not lista:
-        raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
-    
-    vuelo = linked_list.get_first(lista)
-    if not vuelo:
-        raise HTTPException(status_code=404, detail="No hay vuelos en la lista")
-    
-    return vuelo
-
-@router.post("/vuelos", response_model=schemas.VueloResponse)
-def add_flight(vuelo: schemas.VueloCreate, position: str = "last", lista_id: int = 1, db: Session = Depends(get_db)):
-    """
-    Agrega un vuelo al inicio o al final de la lista.
-    """
-    # Crear vuelo
-    db_vuelo = flight_service.create_flight(db, vuelo)
-    
-    # Obtener lista
-    lista = flight_service.get_list_by_id(db, lista_id)
-    if not lista:
-        raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
-    
-    # Agregar a la lista
-    if position.lower() == "first":
-        linked_list.add_first(db, lista, db_vuelo)
-    else:
-        linked_list.add_last(db, lista, db_vuelo)
-    
-    db.commit()
-    return db_vuelo
+    try:
+        lista = flight_service.get_list_by_id(db, lista_id)
+        if not lista:
+            raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
+        
+        vuelo = linked_list.get_first(lista)
+        if not vuelo:
+            raise HTTPException(status_code=404, detail="No hay vuelos en la lista")
+        
+        return vuelo
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener próximo vuelo: {str(e)}"
+        )
 
 @router.get("/vuelos/ultimo", response_model=schemas.VueloResponse)
 def get_last_flight(lista_id: int = 1, db: Session = Depends(get_db)):
     """
-    Obtiene el último vuelo en la lista.
+    RETORNA EL ÚLTIMO VUELO SIN REMOVER.
     """
-    lista = flight_service.get_list_by_id(db, lista_id)
-    if not lista:
-        raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
-    
-    vuelo = linked_list.get_last(lista)
-    if not vuelo:
-        raise HTTPException(status_code=404, detail="No hay vuelos en la lista")
-    
-    return vuelo
+    try:
+        lista = flight_service.get_list_by_id(db, lista_id)
+        if not lista:
+            raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
+        
+        vuelo = linked_list.get_last(lista)
+        if not vuelo:
+            raise HTTPException(status_code=404, detail="No hay vuelos en la lista")
+        
+        return vuelo
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener último vuelo: {str(e)}"
+        )
 
-@router.post("/vuelos/insertar", response_model=schemas.VueloResponse)
-def insert_flight_at_position(vuelo: schemas.VueloCreate, position: int, lista_id: int = 1, db: Session = Depends(get_db)):
+# Endpoint para obtener todos los vuelos de la base de datos
+@router.get("/vuelos", response_model=List[schemas.VueloResponse])
+def read_vuelos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """
-    Inserta un vuelo en una posición específica.
+    OBTIENE TODOS LOS VUELOS DE LA BASE DE DATOS.
+    
+    Este endpoint muestra todos los vuelos existentes en la base de datos,
+    independientemente de si están asociados a alguna lista o no.
     """
-    # Crear vuelo
-    db_vuelo = flight_service.create_flight(db, vuelo)
-    
-    # Obtener lista
-    lista = flight_service.get_list_by_id(db, lista_id)
-    if not lista:
-        raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
-    
-    # Insertar en la posición
-    linked_list.add_at_position(db, lista, db_vuelo, position)
-    
-    db.commit()
-    return db_vuelo
+    try:
+        vuelos = flight_service.get_all_flights(db, skip, limit)
+        return vuelos
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener vuelos de la base de datos: {str(e)}"
+        )
 
-@router.delete("/vuelos/extraer", response_model=schemas.VueloResponse)
-def extract_flight_from_position(position: int, lista_id: int = 1, db: Session = Depends(get_db)):
+@router.get("/vuelos/visualizar", response_model=Dict[str, Any])
+def visualize_flight_list(lista_id: int = 1, db: Session = Depends(get_db)):
     """
-    Extrae un vuelo de una posición específica.
+    GENERA UNA REPRESENTACIÓN VISUAL DE LA ESTRUCTURA DE LA LISTA ENLAZADA.
+    
+    Muestra cómo los vuelos están organizados en los nodos de la lista.
     """
-    lista = flight_service.get_list_by_id(db, lista_id)
-    if not lista:
-        raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
-    
-    vuelo = linked_list.remove_at_position(db, lista, position)
-    if not vuelo:
-        raise HTTPException(status_code=404, detail="No se pudo extraer el vuelo de la posición especificada")
-    
-    db.commit()
-    return vuelo
+    try:
+        from app.services.linked_list_manager import LinkedListManager
+        
+        # Obtener la lista desde la base de datos
+        lista = flight_service.get_list_by_id(db, lista_id)
+        if not lista:
+            raise HTTPException(status_code=404, detail=f"Lista con ID {lista_id} no encontrada")
+        
+        # Obtener la instancia en memoria de la lista
+        memoria_lista = LinkedListManager.get_list_instance(db, lista_id)
+        
+        # Crear la visualización
+        representacion = memoria_lista.visualize()
+        
+        # Obtener datos adicionales para mostrar
+        vuelos_en_lista = linked_list.get_all_flights(lista)
+        
+        return {
+            "representacion_texto": representacion,
+            "total_vuelos": len(vuelos_en_lista),
+            "vuelos": [
+                {
+                    "posicion": idx,
+                    "codigo": v.codigo,
+                    "estado": str(v.estado.name),
+                    "origen": v.origen,
+                    "destino": v.destino
+                } for idx, v in enumerate(vuelos_en_lista)
+            ],
+            "estructura": {
+                "head": memoria_lista.head.data.codigo if memoria_lista.head else None,
+                "tail": memoria_lista.tail.data.codigo if memoria_lista.tail else None,
+                "size": memoria_lista.size()
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al visualizar lista: {str(e)}"
+        )
 
-@router.get("/vuelos/lista", response_model=List[schemas.VueloResponse])
-def get_all_flights_in_list(lista_id: int = 1, db: Session = Depends(get_db)):
+@router.delete("/vuelos/{vuelo_id}", response_model=Dict[str, str])
+def delete_vuelo(vuelo_id: int, db: Session = Depends(get_db)):
     """
-    Obtiene todos los vuelos recorriendo toda la lista enlazada.
-    """
-    lista = flight_service.get_list_by_id(db, lista_id)
-    if not lista:
-        raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
+    ELIMINA UN VUELO DE LA BASE DE DATOS.
     
-    vuelos = linked_list.get_all_flights(lista)
-    return vuelos
-
-@router.patch("/vuelos/reordenar", response_model=schemas.VueloResponse)
-def reorder_flight(from_pos: int, to_pos: int, lista_id: int = 1, db: Session = Depends(get_db)):
+    Este endpoint elimina un vuelo específico de la base de datos.
     """
-    Reordena un vuelo moviéndolo de una posición a otra.
-    """
-    lista = flight_service.get_list_by_id(db, lista_id)
-    if not lista:
-        raise HTTPException(status_code=404, detail="Lista de vuelos no encontrada")
-    
-    vuelo = linked_list.reorder_flight(db, lista, from_pos, to_pos)
-    if not vuelo:
-        raise HTTPException(status_code=404, detail="No se pudo reordenar el vuelo")
-    
-    db.commit()
-    return vuelo
+    try:
+        vuelo = flight_service.get_flight(db, vuelo_id)
+        if not vuelo:
+            raise HTTPException(status_code=404, detail="Vuelo no encontrado")
+        
+        flight_service.delete_flight(db, vuelo)
+        db.commit()
+        
+        return {"mensaje": f"Vuelo {vuelo.codigo} eliminado correctamente"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al eliminar vuelo: {str(e)}"
+        )

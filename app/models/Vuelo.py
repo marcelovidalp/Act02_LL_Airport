@@ -17,7 +17,7 @@ class Vuelo(Base):
     estado = Column(Enum(EstadoVuelo), default=EstadoVuelo.PROGRAMADO)
 
     # Relación con la lista de vuelos
-    lista_vuelos_id = Column(Integer, ForeignKey("listas_vuelos.id"))
+    lista_vuelos_id = Column(Integer, ForeignKey("listas_vuelos.id"), nullable=True)
     lista_vuelos = relationship("ListaVuelos", back_populates="vuelos")
     
     def __init__(self, codigo, origen, destino, hora=None, aerolinea=None, 
@@ -36,3 +36,7 @@ class Vuelo(Base):
                 self.estado = EstadoVuelo.PROGRAMADO
         else:
             self.estado = estado
+    
+    def __repr__(self):
+        """Representación de cadena para depuración"""
+        return f"Vuelo(id={self.id}, codigo='{self.codigo}', estado='{self.estado.name if hasattr(self.estado, 'name') else self.estado}')"

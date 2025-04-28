@@ -9,6 +9,20 @@ como añadir, eliminar y reordenar vuelos, así como priorizarlos según su esta
 
 El sistema sigue una arquitectura por capas:
 
+```mermaid
+graph LR
+    A[Cliente] --> B[Capa de API]
+    B --> C[Capa de Servicio]
+    C --> D[Capa de Datos]
+    D --> E[Base de Datos]
+    
+    style A fill:#f5f5f5,stroke:#333,stroke-width:1px
+    style B fill:#d1e7dd,stroke:#198754,stroke-width:2px
+    style C fill:#fff3cd,stroke:#ffc107,stroke-width:2px
+    style D fill:#cfe2ff,stroke:#0d6efd,stroke-width:2px
+    style E fill:#f8d7da,stroke:#dc3545,stroke-width:2px
+```
+
 1. **Capa de API** - Endpoints FastAPI para operaciones con vuelos
 2. **Capa de Servicio** - Lógica de negocio y operaciones sobre la lista enlazada
 3. **Capa de Datos** - Modelos SQLAlchemy y operaciones de base de datos
@@ -16,6 +30,21 @@ El sistema sigue una arquitectura por capas:
 ## Implementación de Lista Enlazada
 
 Los vuelos están organizados en una lista doblemente enlazada donde:
+
+```mermaid
+graph LR
+    ListaVuelos -->|cabeza| Nodo1
+    ListaVuelos -->|cola| Nodo3
+    
+    Nodo1["Nodo 1<br>Vuelo: IB3456"] -->|siguiente| Nodo2
+    Nodo2["Nodo 2<br>Vuelo: FR1234"] -->|siguiente| Nodo3
+    Nodo3["Nodo 3<br>Vuelo: BA7890"] -->|siguiente| null
+    
+    null1[null] -->|anterior| Nodo1
+    Nodo1 -->|anterior| Nodo2
+    Nodo2 -->|anterior| Nodo3
+```
+
 - Cada nodo contiene un vuelo y punteros a los nodos anterior y siguiente
 - La lista mantiene punteros a cabeza y cola para operaciones eficientes
 - Las operaciones incluyen inserción/eliminación en ambos extremos y en posiciones específicas
@@ -126,6 +155,26 @@ Los vuelos están organizados en una lista doblemente enlazada donde:
 
 ## Estados de Vuelo
 
+```mermaid
+stateDiagram-v2
+    [*] --> PROGRAMADO
+    PROGRAMADO --> EMBARQUE
+    EMBARQUE --> DESPEGADO
+    PROGRAMADO --> RETRASADO
+    RETRASADO --> EMBARQUE
+    RETRASADO --> CANCELADO
+    PROGRAMADO --> CANCELADO
+    PROGRAMADO --> EMERGENCIA
+    EMERGENCIA --> ATERRIZADO
+    DESPEGADO --> ATERRIZADO
+    ATERRIZADO --> [*]
+    CANCELADO --> [*]
+    
+    note right of EMERGENCIA
+        Máxima prioridad
+    end note
+```
+
 - `PROGRAMADO`: Vuelo programado
 - `EMBARQUE`: Vuelo en embarque
 - `DESPEGADO`: Vuelo despegado
@@ -136,6 +185,18 @@ Los vuelos están organizados en una lista doblemente enlazada donde:
 
 ## Flujo de Trabajo Típico
 
+```mermaid
+graph TD
+    A[Crear Vuelo] -->|POST /api/vuelos| B[Añadir a Lista]
+    B -->|POST /api/vuelos?position=first/last| C[Actualizar Estado]
+    C -->|PATCH /api/vuelos/{id}/estado| D{¿Emergencia?}
+    D -->|Sí| E[Priorizar Lista]
+    D -->|No| F[Continuar Normal]
+    E -->|POST /api/listas/1/priorizar| G[Consultar Lista]
+    F --> G
+    G -->|GET /api/vuelos/lista| H[Gestionar Cambios]
+```
+
 1. **Creación de Vuelos**: Usar `POST /api/vuelos/` para crear nuevos vuelos
 2. **Añadir a Lista**: Usar `POST /api/vuelos` para añadir vuelos a la lista
 3. **Gestionar Estados**: Usar `PATCH /api/vuelos/{vuelo_id}/estado` para actualizar estados
@@ -144,6 +205,16 @@ Los vuelos están organizados en una lista doblemente enlazada donde:
 
 ## Códigos de Estado HTTP
 
+```mermaid
+graph TD
+    A[Respuesta API] --> B{Código de Estado}
+    B -->|200| C[OK - Operación completada]
+    B -->|201| D[Created - Recurso creado]
+    B -->|400| E[Bad Request - Datos inválidos]
+    B -->|404| F[Not Found - Recurso no existe]
+    B -->|500| G[Internal Server Error]
+```
+
 - **200 OK**: Operación completada con éxito
 - **201 Created**: Recurso creado con éxito
 - **400 Bad Request**: Error de validación en la solicitud
@@ -151,6 +222,42 @@ Los vuelos están organizados en una lista doblemente enlazada donde:
 - **500 Internal Server Error**: Error del servidor
 
 ## Modelo de Datos
+
+```mermaid
+classDiagram
+    class Vuelo {
+        +id: int
+        +codigo: string
+        +origen: string
+        +destino: string
+        +hora: datetime
+        +aerolinea: string
+        +puerta_embarque: string
+        +estado: EstadoVuelo
+        +lista_vuelos_id: int
+    }
+    
+    class ListaVuelos {
+        +id: int
+        +nombre: string
+        +cabeza_id: int
+        +cola_id: int
+    }
+    
+    class Nodo {
+        +id: int
+        +vuelo_id: int
+        +siguiente_id: int
+        +anterior_id: int
+    }
+    
+    ListaVuelos "1" --> "*" Vuelo: contiene
+    ListaVuelos --> Nodo: cabeza
+    ListaVuelos --> Nodo: cola
+    Nodo --> Vuelo: referencia
+    Nodo --> Nodo: siguiente
+    Nodo --> Nodo: anterior
+```
 
 ### Vuelo
 ```json

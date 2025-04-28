@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
@@ -23,3 +23,17 @@ class VueloResponse(VueloBase):
 
     class Config:
         orm_mode = True
+        # Configuración para asegurar la serialización correcta
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "codigo": "IB3456",
+                "origen": "Madrid",
+                "destino": "Barcelona",
+                "aerolinea": "Iberia",
+                "puerta_embarque": "B12",
+                "hora": "2023-10-24T12:30:00",
+                "estado": "programado",
+                "lista_vuelos_id": 1
+            }
+        }
